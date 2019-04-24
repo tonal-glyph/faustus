@@ -25,3 +25,4 @@
 *.out
 *.app
 target
+.vscode/cquery_cached_index
