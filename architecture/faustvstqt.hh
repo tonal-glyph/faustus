@@ -1,0 +1,1 @@
+faustvstqt.h

@@ -1,0 +1,261 @@
+#! /bin/bash -e
+
+#####################################################################
+#                                                                   #
+#               Compiles Faust programs to iOS applications         #
+#               (c) Grame, 2012-2018                                #
+#                                                                   #
+#####################################################################
+
+. faustpath
+
+ARCHFILE="ios-coreaudio.cpp"
+NOAGC="0"
+POLY="POLY"
+OSCCTRL="0"
+MIDICTRL="0"
+ALL="1"
+EFFECT=""
+NVOICES=-1
+XCODE="0"
+ARCHIVE="0"
+SOUNDFILE="0"
+
+#PHASE 1 : collects files and options from the command line
+
+while [ $1 ]
+do
+    p=$1
+
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echo "faust2ios [-xcode] [-xcodeproj] [-archive] [-32bits] [-noagc] [-nvoices <num>] [-effect auto|<effect.dsp>] [-midi] [-osc] [-soundfile] [additional Faust options (-vec -vs 8...)] <file.dsp>"
+        echo "Use '-xcode' to compile and keep the intermediate Xcode project"
+        echo "Use '-xcodeproj' to produce the intermediate Xcode project"
+        echo "Use '-archive' to generate the archive for Apple Store"
+        echo "Use '-32bits' to compile 32 bits only binary"
+        echo "Use '-noagc' to deactivate audio automatic gain control"
+        echo "Use '-nvoices <num>' to produce a polyphonic self-contained DSP with <num> voices, ready to be used with MIDI or OSC"
+        echo "Use '-effect <effect.dsp>' to produce a polyphonic DSP connected to a global output effect, ready to be used with MIDI or OSC"
+        echo "Use '-effect auto' to produce a polyphonic DSP connected to a global output effect defined as 'effect' in <file.dsp>, ready to be used with MIDI or OSC"
+        echo "Use '-midi' to activate MIDI control"
+        echo "Use '-osc' to activate OSC control"
+        echo "Use '-soundfile' when compiling DSP using 'soundfile' primitive, to add needed resources"
+    	exit
+    fi
+
+    if [ "$p" = -icc ]; then
+        ignore=" "
+    elif [ $p = "-osc" ]; then
+        OSCCTRL="1"
+    elif [ $p = "-soundfile" ]; then
+        SOUNDFILE="1"
+    elif [ "$p" = "-jack" ]; then
+        JACK="1"
+    elif [ "$p" = "-xcode" ]; then
+        XCODE="1"
+    elif [ "$p" = "-xcodeproj" ]; then
+        XCODE="2"
+    elif [ "$p" = "-nvoices" ]; then
+        shift
+        NVOICES=$1
+    elif [ "$p" = "-effect" ]; then
+        POLY="POLY2"
+        shift
+        EFFECT=$1
+    elif [ "$p" = "-midi" ]; then
+        MIDICTRL="1"
+    elif [ "$p" = "-32bits" ]; then
+        ALL="0"
+    elif [ "$p" = "-noagc" ]; then
+        NOAGC="1"
+    elif [ "$p" = "-archive" ]; then
+        ARCHIVE="1"
+   elif [ ${p:0:1} = "-" ]; then
+        OPTIONS="$OPTIONS $p"
+    elif [[ -f "$p" ]]; then
+        FILES="$FILES $p"
+    else
+        OPTIONS="$OPTIONS $p"
+    fi
+
+shift
+
+done
+
+addOptions ()
+{
+    # OSC source always copied in the project
+    cp -r $FAUSTLIB/osclib "$T"
+    if [ "$OSCCTRL" = "1" ]; then
+        echo "#define OSCCTRL 1" | cat - "$T/iOS/iOS-Prefix.pch" > temp && mv temp "$T/iOS/iOS-Prefix.pch"
+    fi
+    if [ "$MIDICTRL" = "1" ]; then
+        echo "#define MIDICTRL 1" | cat - "$T/iOS/iOS-Prefix.pch" > temp && mv temp "$T/iOS/iOS-Prefix.pch"
+    fi
+    if [ $POLY = "POLY2" ]; then
+        echo "#define POLY2 1" | cat - "$T/iOS/iOS-Prefix.pch" > temp && mv temp "$T/iOS/iOS-Prefix.pch"
+    fi
+    if [ "$NOAGC" = "1" ]; then
+        echo "#define NOAGC 1" | cat - "$T/iOS/iOS-Prefix.pch" > temp && mv temp "$T/iOS/iOS-Prefix.pch"
+    fi
+    if [ $NVOICES -ge 0 ]; then
+        echo "#define NVOICES $NVOICES" | cat - "$T/iOS/iOS-Prefix.pch" > temp && mv temp "$T/iOS/iOS-Prefix.pch"
+    fi
+    if [ "$SOUNDFILE" = "1" ]; then
+        echo "#define SOUNDFILE 1" | cat - "$T/iOS/iOS-Prefix.pch" > temp && mv temp "$T/iOS/iOS-Prefix.pch"
+    fi
+}
+
+warnSoundfile()
+{
+    if [ "$SOUNDFILE" = "1" ]; then
+        echo "Warning : -soundfile is used, you'll have to manually add the needed soundfiles in the project"
+    fi
+}
+
+#PHASE 2 : compile all files
+
+for p in $FILES; do
+    S=$(dirname "$p")
+    F=$(basename "$p")
+    P=${F%.dsp}
+    XCODEPROJ="${F%.dsp}"
+    SRCDIR=$(dirname "$p")
+
+	T=$(mktemp -d faust.XXX)
+	cp -r $FAUSTLIB/iOS/* $T
+	
+	if [ "$ALL" = "1" ]; then
+        echo "Compile with CoreAudio support in 64/32 bits"
+        faust -i $OPTIONS -json -a $ARCHFILE "$p" -o "$T/ios-faust.h" || exit
+        addOptions
+
+        if [ $POLY = "POLY2" ]; then
+            if [ $EFFECT = "auto" ]; then
+                cat > $T/effect.dsp << EndOfCode
+                adapt(1,1) = _;
+                adapt(2,2) = _,_;
+                adapt(1,2) = _ <: _,_;
+                adapt(2,1) = _,_ :> _;
+                adaptor(F,G) = adapt(outputs(F),inputs(G));
+                process = adaptor(library("$SRCDIR/$F").process, library("$SRCDIR/$F").effect) : library("$SRCDIR/$F").effect;
+EndOfCode
+                faust -i -json -a $ARCHFILE $OPTIONS "$p" -o "$T/${F%.dsp}_tmp.cpp" || exit
+                faust -i -cn effect -a minimal-effect.cpp "$T/effect.dsp" -o "$T/effect.h" || exit
+                rm "$T/effect.dsp"
+            else
+                faust -i -json -a $ARCHFILE $OPTIONS "$p" -o "$T/${F%.dsp}_tmp.cpp" || exit
+                faust -i -cn effect -a minimal-effect.cpp "$SRCDIR/$EFFECT" -o "$T/effect.h" || exit
+            fi
+        fi
+
+        if [ "$XCODE" == "2" ]; then
+            warnSoundfile
+            mv $T $XCODEPROJ
+            exit
+        fi
+        (
+            # Build the binary
+            xcodebuild -project "$T/iOS.xcodeproj" -target Template_CoreAudio PRODUCT_NAME=$P || exit
+            # Build the archive
+            if [ "$ARCHIVE" = "1" ]; then
+                cd "$T" && xcodebuild -scheme Template_CoreAudio archive -archivePath $P.xcarchive PRODUCT_NAME=$P
+                # Correct archive generated Info.plist to properly use '$P' name
+                cd $P.xcarchive && cp Info.plist Info-tmp.plist && sed -e "s/Template_CoreAudio/"$P"/g" Info-tmp.plist > Info.plist && rm Info-tmp.plist
+            fi
+        ) > /dev/null || exit
+    else
+        echo "Compile with CoreAudio support in 32 bits"
+        faust -i $OPTIONS -json -a $ARCHFILE "$p" -o "$T/ios-faust.h" || exit
+        addOptions
+        if [ "$POLY2" = "1" ]; then
+            faust -i $OPTIONS -json -cn effect -a minimal-effect.cpp $EFFECT -o "$T/effect.h" || exit
+        fi
+
+        if [ "$XCODE" == "2" ]; then
+            warnSoundfile
+            mv $T $XCODEPROJ
+            exit
+        fi
+        (
+        	# Build the binary
+            xcodebuild -project "$T/iOS.xcodeproj" -target Template_CoreAudio_32bits PRODUCT_NAME=$P || exit
+            # Build the archive
+            if [ "$ARCHIVE" = "1" ]; then
+                cd "$T" && xcodebuild -scheme Template_CoreAudio_32bits archive -archivePath $P.xcarchive PRODUCT_NAME=$P
+                # Correct archive generated Info.plist to properly use '$P' name
+                cd $P.xcarchive && cp Info.plist Info-tmp.plist && sed -e "s/Template_CoreAudio/"$P"/g" Info-tmp.plist > Info.plist && rm Info-tmp.plist
+            fi
+        ) > /dev/null || exit
+ 	fi
+
+    # move generated app to source directory
+    rm -rf "$S/$P.app"
+    mv "$T/build/Release-iphoneos/$P.app" "$S/"
+    if [ "$ARCHIVE" = "1" ]; then
+        rm -rf "$S/$P.xcarchive"
+        mv "$T/$P.xcarchive" "$S/"
+    fi
+    if [ "$XCODE" != "1" ]; then
+        rm -rf "$T"
+    else
+        echo "Keep Xcode project"
+    fi
+
+    if [ "$SOUNDFILE" = "1" ]; then
+        # get all soundfiles from the JSON file
+        cat $p.json | awk '
+                        BEGIN { FS=":"; SOFI=0; }
+                            /"soundfile"/ { SOFI=1; }
+                            /"url"/ {
+                            if (SOFI) {
+                                match($2, /"[^"]*/);
+                                split(substr($2, RSTART+2, RLENGTH-3), res, ";");
+                                for (x in res) print substr(res[x], 2, length(res[x])-2);
+                                SOFI=0;
+                            }
+                        }
+                    ' > $p-tmp.txt
+        # copy found soundfiles in the final binary
+        for snd in $(cat $p-tmp.txt); do
+            if [ -f $snd ]; then
+                if [ ${snd:0:1} = "/" ]; then
+                    echo "Warning: soundfile with absolute path is not copied !"
+                else
+                    #create destination path and possibly create directory
+                    sfpath="$P.app/$(dirname $snd)/"
+                    if ! [ -d $sfpath ]; then
+                        echo "Create $sfpath"
+                        mkdir $sfpath
+                    fi
+                    echo "Copy $snd in $P.app"
+                    cp $snd $sfpath
+                    if [ "$ARCHIVE" = "1" ]; then
+                        sfarchivepath="$P.xcarchive/Products/Applications/$P.app/$(dirname $snd)/"
+                        if ! [ -d $sfarchivepath ]; then
+                            echo "Create $sfarchivepath"
+                            mkdir $sfarchivepath
+                        fi
+                        echo "Copy $snd in $P.xcarchive/Products/Applications/$P"
+                        cp $snd $sfarchivepath
+                    fi
+                fi
+            else
+                echo "Error: file $snd not found !"
+            fi
+        done
+        rm $p-tmp.txt
+    fi
+
+	# collect binary file name for FaustGIDE
+    if [ "$ARCHIVE" = "1" ]; then
+        BINARIES="$BINARIES$S/$P.app; $BINARIES$S/$P.xcarchive;"
+    else
+        BINARIES="$BINARIES$S/$P.app;"
+    fi
+
+    # remove temporary files
+    rm $p.json
+done
+
+echo $BINARIES

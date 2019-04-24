@@ -1,0 +1,80 @@
+#! /bin/bash -e
+
+#####################################################################
+#                                                                   #
+#               Compiles Faust programs to fausgen~ patch           #
+#               (c) Grame, 2015                                     #
+#                                                                   #
+#####################################################################
+
+. faustpath
+. faustoptflags
+
+POLY="MONO"
+NVOICES=-1
+
+JSFILE_PATH="ui.js"
+
+#PHASE 2 : dispatch command arguments
+while [ $1 ]
+do
+    p=$1
+
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echo "faust2gen [-nvoices <num>] <file.dsp>"
+        echo "Use '-nvoices <num>' to produce a polyphonic self-contained DSP with <num> voices, ready to be used with MIDI"
+    	exit
+    fi
+    
+    if [[ -f "$p" ]]; then
+	    FILES="$FILES $p"
+    elif [ $p = "-nvoices" ]; then
+        POLY="POLY1"
+        shift
+        NVOICES=$1
+        if [ $NVOICES -ge 0 ]; then
+            CXXFLAGS="$CXXFLAGS -DNVOICES=$NVOICES"
+        fi
+	else
+	    OPTIONS="$OPTIONS $p"
+	fi
+
+shift
+
+done
+
+#look for polyphonic "nvoices" metadata in the DSP file
+
+grep "declare nvoices" $FILES && POLY="POLY1" 2>/dev/null
+
+#-------------------------------------------------------------------
+# compile the *.dsp files
+#
+
+for p in $FILES; do
+
+    f=$(basename "$p")
+
+    # create Max patch
+    if [ $POLY = "POLY1" ]; then
+        cat $FAUSTLIB/max-msp/faustgen-wrapper-poly.maxpat > ${f%.dsp}-temp1.maxpat
+    else
+        cat $FAUSTLIB/max-msp/faustgen-wrapper.maxpat > ${f%.dsp}-temp1.maxpat
+    fi
+    sed -e "s/DSP_NAME/"${f%.dsp}"/g" ${f%.dsp}-temp1.maxpat >> ${f%.dsp}-temp2.maxpat
+    sed -e "s/UI_FILE/"$JSFILE_PATH"/g" ${f%.dsp}-temp2.maxpat > ${f%.dsp}.maxpat
+
+    # collect binary file name for FaustGIDE
+    BINARIES="$BINARIES${f%.dsp}.maxpat;"
+
+    # copy JavaScript UI file
+    cp $FAUSTLIB/max-msp/ui.js .
+
+    rm ${f%.dsp}-temp1.maxpat
+    rm ${f%.dsp}-temp2.maxpat
+    
+done
+
+BINARIES="$BINARIES ui.js"
+
+echo $BINARIES

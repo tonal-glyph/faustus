@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -O3 -Wextra -Wno-unused-parameter  -shared -Wl,-soname,libfaustmachine.so.0 -o ../../lib/libfaustmachine.so.1.0.0 CMakeFiles/faustmachinedynamic.dir/home/dark/proj/faust/compiler/generator/export.cpp.o CMakeFiles/faustmachinedynamic.dir/home/dark/proj/faust/compiler/generator/interpreter/interpreter_dsp_aux.cpp.o -L/usr/lib -lLLVM-8 

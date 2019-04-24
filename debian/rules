@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	dh_auto_build -- PREFIX=/usr world
+
+override_dh_auto_install:
+	dh_auto_install -- DESTDIR=$(CURDIR)/debian/faust PREFIX=/usr
+
+override_dh_compress:
+	dh_compress -X.h -X.cc -X.lib -X.dsp -X.pd -X.maxpat -X.mid -X.txt -XMakefile -XREADME
+
+override_dh_strip:
+	dh_strip -Xosclib/libOSCFaust.a -Xosclib/liboscpack.a -Xosclib/*/libOSCFaust.a -Xosclib/*/liboscpack.a -Xfaust/ios-libsndfile.a -Xlibsndfile.so
+
+override_dh_shlibdeps:
+	dh_shlibdeps -Xfaust/osclib/libOSCFaust.so* -Xfaust/osclib/*/libOSCFaust.so* -Xlibsndfile.so

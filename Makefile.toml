@@ -1,0 +1,43 @@
+[tasks.fmt]
+script = [
+    "echo 'Tidying and Formatting C/C++ code...'",
+    "clang-tidy -enable-check-profile -explain-config -export-fixes=clang-tidy-fixes.yml -format-style=file -header-filter=.* -system-headers=0 -fix -fix-errors src/*.h* src/lo/*.h src/regex/*.h"
+]
+[tasks.rustfmt]
+script = [
+    "echo 'Formatting rust code...'",
+    "rustfmt -v src/**/*.rs"
+]
+[tasks.fix]
+script = [
+    "cargo fix --edition --edition-idioms --allow-no-vcs --broken-code"
+]
+[tasks.ctags]
+script = [
+    "echo 'Generating debugging ctags/etags...'",
+    "ptags -f tags"
+]
+[tasks.rtags]
+script = [
+    "ptags -c --links=no -c --languages=Rust rtags"
+]
+[tasks.cl]
+script = [
+    "echo 'Cleaning artifacts'",
+    "make -j$(nproc) -v clean",
+    "cargo -v clean",
+    "rm -rfv core/**/*.o host/**/*.o ../chuck/src/achuck ../chuck/src/pchuck ../chuck/src/jchuck tags",
+    "rm -rfv src/*.h* src/*.lex src/*.y src/chuck.output src/lo/*.h src/lo/*.c src/regex/*.c src/regex/*.h"
+]
+[tasks.bind]
+script = [
+    "make -j$(nproc) bind"
+]
+[tasks.doc]
+script = [
+    "cargo doc --color always --all-features -j $(nproc) --no-deps"
+]
+[tasks.doxy]
+script = [
+    "cd ../chuck/ && doxygen Doxygen && cd ../chuck_sys"
+]

@@ -1,0 +1,182 @@
+#! /bin/bash -e
+
+#####################################################################
+#                                                                   #
+#           Compiles Faust programs to JUCE standalone or plugin    #
+#           (c) Grame, 2016-2017                                    #
+#                                                                   #
+#####################################################################
+
+. faustpath
+. faustoptflags
+
+CXXFLAGS=$MYGCCFLAGS
+
+PATH=$PATH:/usr/local/bin
+DEBUG=false
+
+#-------------------------------------------------------------------
+#PHASE 1 : dispatch command arguments
+#-------------------------------------------------------------------
+
+OSCLIB=""
+POLY="POLY"
+DEF=""
+EFFECT=""
+NVOICES=-1
+STANDALONE="0"
+IS_SYNTH="0"
+IS_MIDI="0"
+JUCE_POLY="0"
+FAUSTFLOAT="float"
+
+while [ $1 ]
+do
+    p=$1
+
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echo "faust2juce [-standalone] [-nvoices <num>] [-effect auto|<effect.dsp>] [-jsynth] [-midi] [-osc] [-soundfile]  [additional Faust options (-vec -vs 8...)] <file.dsp>"
+        echo "Use '-standalone' to produce a standalone project, otherwise a plugin project is generated"
+        echo "Use '-nvoices <num>' to produce a polyphonic self-contained DSP with <num> voices, ready to be used with MIDI or OSC"
+        echo "Use '-effect <effect.dsp>' to produce a polyphonic DSP connected to a global output effect, ready to be used with MIDI or OSC"
+        echo "Use '-effect auto' to produce a polyphonic DSP connected to a global output effect defined as 'effect' in <file.dsp>, ready to be used with MIDI or OSC"
+        echo "Use '-jsynth' to use JUCE polyphonic Synthesizer instead of Faust polyphonic code"
+        echo "Use '-midi' to activate MIDI control"
+        echo "Use '-osc' to activate OSC control"
+        echo "Use '-soundfile' when compiling DSP using 'soundfile' primitive, to add needed resources"
+        exit
+    fi
+
+    if [ "$p" = -debug ]; then
+    	DEBUG=true
+    elif [ $p = "-nvoices" ]; then
+        shift
+        NVOICES=$1
+    elif [ $p = "-standalone" ]; then
+        STANDALONE="1"
+    elif [ $p = "-effect" ]; then
+        DEF+="POLY2 "
+        POLY="POLY2"
+        shift
+        EFFECT=$1
+    elif [ $p = "-jsynth" ]; then
+        DEF+="JUCE_POLY "
+        JUCE_POLY="1"
+    elif [ $p = "-midi" ]; then
+        DEF+="MIDICTRL "
+        IS_MIDI="1"
+    elif [ $p = "-osc" ]; then
+		 DEF+="OSCCTRL "
+    elif [ $p = "-soundfile" ]; then
+        DEF+="SOUNDFILE "
+    elif [ ${p:0:1} = "-" ]; then
+        if [ $p = "-double" ]; then
+            FAUSTFLOAT="double"
+        fi
+	    OPTIONS="$OPTIONS $p"
+	elif [[ -f "$p" ]]; then
+	    FILES="$FILES $p"
+	else
+	    OPTIONS="$OPTIONS $p"        
+	fi
+
+shift
+
+done
+
+if [ $STANDALONE = "1" ] && [ $JUCE_POLY = "1" ]; then
+    echo "Cannot use -standalone with -jsynth"
+    exit
+fi
+
+if [ $POLY = "POLY2" ] && [ $JUCE_POLY = "1" ]; then
+    echo "Cannot use -effect with -jsynth"
+    exit
+fi
+
+#look for polyphonic "nvoices" metadata in the DSP file
+
+grep "declare nvoices" $FILES && IS_SYNTH="1" 2>/dev/null
+
+#-------------------------------------------------------------------
+# compile the *.dsp files
+#-------------------------------------------------------------------
+
+for p in $FILES; do
+
+    CUR=$(pwd)
+    f=$(basename "$p")
+	SRCDIR=$(dirname "$p")
+
+    # creates the dir 
+    dspName="${f%.dsp}"
+    SUB_TYPE=$(shasum $p)
+    SUB_TYPE=${SUB_TYPE:0:4}
+    rm -rf "$SRCDIR/$dspName"
+ 
+    if [ $STANDALONE = "0" ]; then
+        cp -r "$FAUSTLIB/juce/plugin" "$SRCDIR/$dspName/"
+        # setting plugin name to match the dsp
+        sed -e "s/SUB_TYPE/$SUB_TYPE/g" "$SRCDIR/$dspName/plugin.jucer" >> "$SRCDIR/$dspName/$dspName-temp.jucer"
+    else
+        cp -r "$FAUSTLIB/juce/standalone" "$SRCDIR/$dspName/"
+        # setting project name to match the dsp
+        sed -e "s/ProjectTitle/$dspName/g" "$SRCDIR/$dspName/standalone.jucer" >> "$SRCDIR/$dspName/$dspName-temp.jucer"
+    fi
+
+    # setting the preprocessing definitions
+    sed -e "s/PreProcDef/$DEF/g" "$SRCDIR/$dspName/$dspName-temp.jucer" >> "$SRCDIR/$dspName/$dspName-temp0.jucer"
+    sed -e "s/APPL_NAME/$dspName/g" "$SRCDIR/$dspName/$dspName-temp0.jucer" >> "$SRCDIR/$dspName/$dspName-temp1.jucer"
+
+    # MIDI
+    sed -e "s/IS_MIDI/$IS_MIDI/g" "$SRCDIR/$dspName/$dspName-temp1.jucer" >> "$SRCDIR/$dspName/$dspName-temp2.jucer"
+
+    # SYNTH
+    sed -e "s/IS_SYNTH/$IS_SYNTH/g" "$SRCDIR/$dspName/$dspName-temp2.jucer" >> "$SRCDIR/$dspName/$dspName-temp3.jucer"
+
+    # FAUSTFLOAT
+    sed -e "s/FAUST_FLOAT/$FAUSTFLOAT/g" "$SRCDIR/$dspName/$dspName-temp3.jucer" >> "$SRCDIR/$dspName/$dspName-temp4.jucer"
+
+    # possibly set NVOICES value
+    if [ $NVOICES -ge 0 ]; then
+        sed -e "s/NUM_VOICES/$NVOICES/g" "$SRCDIR/$dspName/$dspName-temp4.jucer" >> "$SRCDIR/$dspName/$dspName.jucer"
+    else
+        cp "$SRCDIR/$dspName/$dspName-temp4.jucer" "$SRCDIR/$dspName/$dspName.jucer"
+    fi
+
+    # standalone or plugin mode
+    if [ $STANDALONE = "0" ]; then
+        rm "$SRCDIR/$dspName/plugin.jucer"
+    else
+        rm "$SRCDIR/$dspName/standalone.jucer"
+    fi
+
+    rm "$SRCDIR/$dspName/$dspName-temp.jucer"  "$SRCDIR/$dspName/$dspName-temp0.jucer" 
+    rm "$SRCDIR/$dspName/$dspName-temp1.jucer" "$SRCDIR/$dspName/$dspName-temp2.jucer"
+    rm "$SRCDIR/$dspName/$dspName-temp3.jucer" "$SRCDIR/$dspName/$dspName-temp4.jucer" 
+
+    # standalone of plugin mode
+    if [ $STANDALONE = "0" ]; then
+        faust -i -a $FAUSTLIB/juce/juce-plugin.cpp $OPTIONS "$SRCDIR/$f" -o "$SRCDIR/$dspName/FaustPluginProcessor.cpp" || exit
+    else
+        faust -i -a $FAUSTLIB/juce/juce-standalone.cpp $OPTIONS "$SRCDIR/$f" -o "$SRCDIR/$dspName/FaustAudioApplication.cpp" || exit
+    fi
+
+    if [ $POLY = "POLY2" ]; then
+        if [ $EFFECT = "auto" ]; then
+            cat > $SRCDIR/$dspName/effect.dsp << EndOfCode
+            adapt(1,1) = _;
+            adapt(2,2) = _,_;
+            adapt(1,2) = _ <: _,_;
+            adapt(2,1) = _,_ :> _;
+            adaptor(F,G) = adapt(outputs(F),inputs(G));
+            process = adaptor(library("$SRCDIR/$f").process, library("$SRCDIR/$f").effect) : library("$SRCDIR/$f").effect;
+EndOfCode
+            faust -i -cn effect -a minimal-effect.cpp "$SRCDIR/$dspName/effect.dsp" -o "$SRCDIR/$dspName/effect.h" || exit
+            rm "$SRCDIR/$dspName/effect.dsp"
+        else
+            faust -i -cn effect -a minimal-effect.cpp "$SRCDIR/$EFFECT" -o "$SRCDIR/$dspName/effect.h" || exit
+        fi
+    fi
+
+done

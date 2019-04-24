@@ -1,0 +1,142 @@
+#! /bin/bash -e
+
+#####################################################################
+#                                                                   #
+#               Compiles Faust programs to JACK-GTK                 #
+#               (c) Grame, 2009-2018                                #
+#                                                                   #
+#####################################################################
+
+. faustpath
+. faustoptflags
+
+CXX=g++
+CXXFLAGS="$MYGCCFLAGS -std=c++11"
+
+OSCDEFS=""
+POLY="POLY"
+NVOICES=-1
+ARCHFILE="jack-gtk.cpp"
+SOUNDFILE="0"
+SOUNDFILEDEFS=""
+SOUNDFILELIBS=""
+
+#-------------------------------------------------------------------
+# Check Darwin specifics
+#
+if [[ $(uname) == Darwin ]]; then
+    ARCHLIB+=" -framework CoreMIDI -framework CoreFoundation"
+else
+    ARCHLIB+=" `pkg-config --cflags --libs alsa`"
+fi
+
+#PHASE 2 : dispatch command arguments
+while [ $1 ]
+do
+    p=$1
+
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echo "faust2jack [-httpd] [-soundfile] [-nvoices <num>] [-effect auto|<effect.dsp>] [-midi] [-osc] [additional Faust options (-vec -vs 8...)] <file.dsp>"
+        echo "Use '-httpd' to activate HTTP control"
+        echo "Use '-soundfile' when compiling DSP using 'soundfile' primitive, to add needed resources"
+   	    echo "Use '-nvoices <num>' to produce a polyphonic self-contained DSP with <num> voices, ready to be used with MIDI or OSC"
+        echo "Use '-effect <effect.dsp>' to produce a polyphonic DSP connected to a global output effect, ready to be used with MIDI or OSC"
+        echo "Use '-effect auto' to produce a polyphonic DSP connected to a global output effect defined as 'effect' in <file.dsp>, ready to be used with MIDI or OSC"
+        echo "Use '-midi' to activate MIDI control"
+        echo "Use '-osc' to activate OSC control"
+        exit
+    fi
+
+    if [ "$p" = -omp ]; then
+        if [[ $CXX == "icpc" ]]; then
+            OMP="-openmp"
+        else
+            OMP="-fopenmp"
+        fi
+    fi
+  
+    if [ "$p" = -icc ]; then
+    	ignore=" "
+    elif [ $p = "-nvoices" ]; then
+        POLYDEFS="-DPOLY"
+        shift
+        NVOICES=$1
+        if [ $NVOICES -ge 0 ]; then
+            CXXFLAGS="$CXXFLAGS -DNVOICES=$NVOICES"
+        fi
+    elif [ $p = "-effect" ]; then
+        POLYDEFS="-DPOLY2"
+        POLY="POLY2"
+        shift
+        EFFECT=$1
+    elif [ $p = "-midi" ]; then
+        MIDIDEFS="-DMIDICTRL"
+    elif [ $p = "-soundfile" ]; then
+        SOUNDFILE="1"
+        SOUNDFILEDEFS="-DSOUNDFILE"
+        SOUNDFILELIBS=`pkg-config --cflags --static --libs sndfile`
+    elif [ $p = "-osc" ]; then
+        OSCDEFS="-DOSCCTRL -lOSCFaust"
+    elif [ $p = "-httpd" ]; then
+        HTTPDEFS="-DHTTPCTRL -lHTTPDFaust -lmicrohttpd"
+	elif [ $p = "-ocv" ]; then
+        OCVDEFS="-DOCVCTRL -lpthread"
+        OCVLIBS="opencv"
+    elif [ $p = "-arch32" ]; then
+        PROCARCH="-m32 -L/usr/lib32"
+    elif [ $p = "-arch64" ]; then
+        PROCARCH="-m64"
+    elif [ ${p:0:1} = "-" ]; then
+	    OPTIONS="$OPTIONS $p"
+	elif [[ -f "$p" ]]; then
+	    FILES="$FILES $p"
+	else
+	    OPTIONS="$OPTIONS $p"        
+	fi
+
+shift
+
+done
+
+#-------------------------------------------------------------------
+# compile the *.dsp files using JACK-GTK on linux
+#
+for f in $FILES; do
+
+    # compile faust to c++
+    if [ $POLY = "POLY2" ]; then
+        if [ $EFFECT = "auto" ]; then
+            cat > effect.dsp << EndOfCode
+            adapt(1,1) = _;
+            adapt(2,2) = _,_;
+            adapt(1,2) = _ <: _,_;
+            adapt(2,1) = _,_ :> _;
+            adaptor(F,G) = adapt(outputs(F),inputs(G));
+            process = adaptor(library("$f").process, library("$f").effect) : library("$f").effect;
+EndOfCode
+            faust -i -json -a $ARCHFILE $OPTIONS "$f" -o "$f.cpp"|| exit
+            faust -i -cn effect -a minimal-effect.cpp effect.dsp -o effect.h || exit
+            rm effect.dsp
+        else
+            faust -i -json -a $ARCHFILE $OPTIONS "$f" -o "$f.cpp" || exit
+            faust -i -cn effect -a minimal-effect.cpp "$EFFECT" -o "effect.h" || exit
+        fi
+    else
+        faust -i -a $ARCHFILE $OPTIONS "$f" -o "$f.cpp" || exit
+    fi
+
+	# compile c++ to binary
+	(
+		$CXX $CXXFLAGS $FAUSTTOOLSFLAGS $OMP "$f.cpp" `pkg-config --cflags --libs jack $OCVLIBS gtk+-2.0` $SOUNDFILELIBS $PROCARCH $OSCDEFS $HTTPDEFS $OCVDEFS $MIDIDEFS $POLYDEFS $SOUNDFILEDEFS $ARCHLIB -o "${f%.dsp}"
+	) > /dev/null || exit
+
+    #remove tempory stuff
+	rm -f "$f.cpp" effect.h "$f.json"
+
+	# collect binary file name for FaustWorks
+	BINARIES="$BINARIES${f%.dsp};"
+done
+
+echo $BINARIES
+
+

@@ -1,0 +1,19 @@
+bin_ctags = "ctags"
+bin_git = "git"
+config = true
+dir = "src"
+exclude = []
+exclude_lfs = false
+include_ignored = false
+include_submodule = false
+include_untracked = true
+opt_ctags = []
+opt_git = []
+opt_git_lfs = []
+output = "tags"
+stat = true
+thread = 8
+unsorted = false
+validate_utf8 = true
+verbose = true
+

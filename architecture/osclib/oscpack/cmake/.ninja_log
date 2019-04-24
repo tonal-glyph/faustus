@@ -1,0 +1,9 @@
+# ninja log v5
+1	49	1552966236838308354	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/osc/OscTypes.cpp.o	55dec397971ec088
+2	65	1552966236854973571	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/ip/IpEndpointName.cpp.o	71ed100c63313b6c
+2	71	1552966236858306614	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/ip/posix/NetworkingUtils.cpp.o	64e15dbb30bd5535
+0	167	1552966236954964872	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/osc/OscOutboundPacketStream.cpp.o	13cc7a1f59fcb7bd
+1	206	1552966236994961393	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/osc/OscReceivedElements.cpp.o	68a39df0b903dfc3
+1	518	1552966237304934428	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/osc/OscPrintReceivedElements.cpp.o	4fcefc146b7efca6
+3	753	1552966237541580509	CMakeFiles/oscpack.dir/home/dark/proj/faust/architecture/osclib/oscpack/ip/posix/UdpSocket.cpp.o	162d7cfaa85d92e6
+754	903	1552966237688234418	/home/dark/proj/faust/architecture/osclib/liboscpack.a	82feb68debde1a5a

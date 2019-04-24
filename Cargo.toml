@@ -1,0 +1,31 @@
+[package]
+name = "faust"
+version = "0.1.0"
+authors = [
+    "Andrew Prentice <scalarwaves@null.net>",
+]
+exclude = [
+    "build/**/*.o",
+    "src/**/*.o",
+    "build/**/*.d",
+    "src/**/*.d",
+    "doc/**/*.html"
+]
+include = ["src/**/*", "Cargo.toml"]
+edition = "2018"
+build = "build.rs"
+
+[lib]
+name = "faust"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[build-dependencies]
+bindgen = "0.47.3"
+cfg-if = "0.1.7"
+cc = "1.0.30"
+dotenv = "0.13.0"
+
+
+[dependencies]
+libc = "0.2.49"

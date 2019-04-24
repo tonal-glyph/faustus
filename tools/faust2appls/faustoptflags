@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#####################################################################
+#                                                                   #
+#               Defines the best optimisation flags to use          #
+#				on the various platforms. This file is called		#
+#				by the faust2xxx scripts. It sets two variables		#
+#				$MYGCCFLAGS and $MYICCFLAGS							#
+#               (c) Grame, 2013                                		#
+#                                                                   #
+#####################################################################
+
+#-------------------------------------------------------------------
+# Default compilation flags for gcc and icc :
+#
+if [[ $(uname -m) == armv6l ]]; then		# for Raspberry PI
+	MYGCCFLAGS="-O3 -march=armv6zk -mcpu=arm1176jzf-s -mtune=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard -ffast-math -ftree-vectorize"
+elif [[ $(uname -s) == Darwin ]]; then		# for MacOSX (intel)
+	MYGCCFLAGS="-Ofast -march=native"
+else 										# for Linux (intel)
+    MYGCCFLAGS="-Ofast -march=native"
+fi
+
+# for Linux (intel) with icc
+MYICCFLAGS="-O3 -xHost -ftz -fno-alias -fp-model fast=2"
+
+# Default compiler
+CXX=c++
+CC=g++
+LIPO=lipo

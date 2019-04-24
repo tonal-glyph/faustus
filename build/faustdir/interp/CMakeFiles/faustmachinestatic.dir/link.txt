@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libfaustmachine.a  CMakeFiles/faustmachinestatic.dir/home/dark/proj/faust/compiler/generator/export.cpp.o CMakeFiles/faustmachinestatic.dir/home/dark/proj/faust/compiler/generator/interpreter/interpreter_dsp_aux.cpp.o
+/usr/bin/ranlib ../../lib/libfaustmachine.a

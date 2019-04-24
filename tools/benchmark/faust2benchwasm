@@ -1,0 +1,138 @@
+#!/bin/bash
+
+OPT="false"
+HTML="false"
+EMCC="false"
+JSMEM="false"
+
+#####################################################################
+#                                                                   #
+#               WASM bench in browsers                              #
+#               (c) Grame, 2017                                     #
+#                                                                   #
+#####################################################################
+
+#-------------------------------------------------------------------
+# Set Faust include path
+
+if [ -f $FAUST_LIB_PATH/music.lib ]
+    then
+    FAUSTLIB=$FAUST_LIB_PATH
+elif [ -f /usr/local/share/faust/all.lib ]
+    then
+    FAUSTLIB=/usr/local/share/faust/
+elif [ -f /usr/share/faust/all.lib ]
+    then
+FAUSTLIB=/usr/share/faust/
+    else
+echo "ERROR : $0 cannot find Faust library dir (usually /usr/local/share/faust)"
+fi
+
+for p in $@; do
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echo "faust2benchwasm [-opt] [-html] [-emcc] [-jsmem] [additional Faust options (-ftz 2...)] foo.dsp"
+        echo "Use '-opt' to optimize the wasm module using Binaryen tools (https://github.com/WebAssembly/binaryen)"
+        echo "Use '-html' to generate an HTML page with the benchmark"
+        echo "Use '-emcc' to compile C generated code to wasm with Emscripten, otherwise the internal wasm backend is used"
+        echo "Use '-jsmem' to generate a wasm module and wrapper code using JavaScript side allocated wasm memory"
+        exit
+    elif [ $p = "-html" ]; then
+        HTML="true"
+    elif [ $p = "-opt" ]; then
+        OPT="true"
+    elif [ $p = "-emcc" ]; then
+        EMCC="true"
+    elif [ $p = "-jsmem" ]; then
+        JSMEM="true"
+    elif [ ${p:0:1} = "-" ]; then
+        OPTIONS="$OPTIONS $p"
+    elif [[ -f "$p" ]]; then
+        FILES="$FILES $p"
+    else
+        OPTIONS="$OPTIONS $p"
+    fi
+done
+
+#-------------------------------------------------------------------
+# compile the *.dsp files 
+
+for f in $FILES; do
+
+    name=$(basename "$f" .dsp)
+
+    echo "Compiled with additional options:$OPTIONS"
+
+    # compile Faust to wasm
+    if [ $EMCC = "true" ]; then
+        echo "Compiled with 'emcc'"
+        faust $OPTIONS -lang c -light -cn $name "$f" -o $name.c || exit
+        # generate the $name.js file
+        faust $OPTIONS -lang wasm "$f" -o $name.wasm || exit
+        emcc $name.c -O3 -s WASM=1 -s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0 -o $name.wasm || echo "emcc compilation error"
+    elif [ $JSMEM = "true" ]; then
+        # generate a wasm module using JS side wasm allocated memory
+        faust $OPTIONS -lang wasm-e "$f" -o $name.wasm || exit
+    else
+        faust $OPTIONS -lang wasm "$f" -o $name.wasm || exit
+    fi
+
+    if [ $OPT = "true" ]; then
+        echo "Optimize wasm module"
+        wasm-opt $name.wasm -O3 -o $name.wasm
+    fi
+
+    # create the HTML file
+    cp $name.js $name-tmp1.js
+    sed -e "s/mydsp/"$name"/g" $name-tmp1.js >> $name-tmp2.js
+    if [ $EMCC = "true" ]; then
+        sed -e "s/mydsp/"$name"/g" $FAUSTLIB/webaudio/wasm-bench-emcc.js >> $name-tmp2.js
+    elif [ $JSMEM = "true" ]; then
+        # wraps using JS side wasm allocated memory
+        sed -e "s/mydsp/"$name"/g" $FAUSTLIB/webaudio/wasm-bench-jsmem.js >> $name-tmp2.js
+    else
+        sed -e "s/mydsp/"$name"/g" $FAUSTLIB/webaudio/wasm-bench.js >> $name-tmp2.js
+    fi
+    sed -e "s/DSP/"$name"/g" $name-tmp2.js >> $name-tmp3.js
+
+    if [ $HTML = "true" ]; then
+        echo "<html>" > $name.html
+        echo "<body>" >> $name.html
+        echo "<H1>" >> $name.html
+        echo "$name <br></H1>" >> $name.html
+
+        echo "<H4>" >> $name.html
+        echo "<button onclick=\"startBenchmark()\">Start benchmark</button>" >> $name.html
+        echo "<br>" >> $name.html
+        echo "MBytes/sec :" >> $name.html
+        echo "<input id=\"megapersec\" \"type=\"text\" \"value=\"\">" >> $name.html
+        echo "<br>" >> $name.html
+        echo "CPU load (in % of a 1024 frames, 44.1 kHz audio buffer) :" >> $name.html
+        echo "<input id=\"cpu\" \"type=\"text\" \"value=\"\">" >> $name.html
+
+        echo "<script>" >> $name.html
+        cat $name-tmp3.js >> $name.html
+        echo "</script>" >> $name.html
+        echo "</body>" >> $name.html
+        echo "</html>" >> $name.html
+    else
+        mv $name-tmp3.js $name.js
+    fi
+
+    # cleanup
+    if [ $EMCC = "true" ]; then
+        rm $name.c
+    fi
+
+    if [ $HTML = "true" ]; then
+        rm $name-tmp1.js $name-tmp2.js $name-tmp3.js $name.js
+        # collect binary file name
+        BINARIES="$BINARIES$name.html;$name.wasm;"
+    else
+        rm $name-tmp1.js $name-tmp2.js
+        # collect binary file name
+        BINARIES="$BINARIES$name.js;$name.wasm;"
+    fi
+
+done
+
+echo $BINARIES
