@@ -13,29 +13,17 @@ The Faust compiler translates DSP specifications into very efficient code for va
 
 While there are Faust contributors everywhere across the globe, Faust is mainly being developed at Grame, Centre National de Creation Musicale (<http://www.grame.fr>), its birthplace.
 
-## Versions and Branches
+## This repo
 
-The Faust distribution can be downloaded on the Faust Github repository: <https://github.com/grame-cncm/faust>. Official releases packages are also available here: <https://github.com/grame-cncm/faust/releases>.
-
-In the following subsections, details about the differences between these 2 versions of Faust are provided as well as information on other branches of the repository.
-
-### `master`
-
-`master` is the main Faust branch. It can compile in different languages: C, C++, JAVA, JavaScript, ASM JavaScript, LLVM IR, WebAssembly etc. It also implements experimental features such as multi-rate capabilities, etc. Thanks to its ability to generate LLVM IR and by using LLVM JIT, Faust is "embeddable" in any C++ program through a library called `libfaust`. Compiling Faust relies on [LLVM](https://llvm.org). Finally, Faust is needed by some sister projects of Faust such as FaustLive, FaucK, faustgen~, etc. This branch also contains the old Faust1 C++ backend.
-
-### `master-dev` (Preferred Development Branch)
-
-`master-dev` is the development sub-branch of `master`. It is used by Faust developers to commit their changes and can be considered as "the main development branch." The goal is to make sure that `master` is always functional. Merges between `master-dev` and `master` are carried out multiple times a week by the GRAME team.
-
-More experimental branches are also available but are not documented here.
+`faustus` is a creative coding toolkit for the FAUST project written in Rust. As such it has been customized and refactored. Eventually faustus will be a part of [tgtracker](https://github.com/tonal-glyph/tgtracker).
 
 ## Overview of the Faust Distribution
 
 This is an overview of the content of the top-level folders of the Faust distribution. Most of these folders contain their own README describing their content in more details.
 
 	architecture/          : the architecture files currently supported
-	build/                 : build tools and scripts (cmake based)
 	benchmark/             : tools to measure the impact of various compiler options
+	build/                 : build tools and scripts (cmake based)
 	compiler/              : sources of the Faust compiler
 	debian/                : files for Debian installation
 	documentation/         : Faust developer's documentation
@@ -47,79 +35,6 @@ This is an overview of the content of the top-level folders of the Faust distrib
 	tools/                 : additional easy-to-use scripts (faust2...) to produce binaries and plugins
 	windows/               : Windows related resources
 
-## Libraries
-
-Faust libraries are now in a [separated subproject](https://github.com/grame-cncm/faustlibraries). They are synchronized from time to time in the main Faust repository using the following commands:
-
-    git submodule update --remote --merge
-    git add libraries
-    git commit -m "Project updated to the latest version of the libraries"
-    git push
-
-## Compilation and Installation
-
-Since release 2.5.18, Faust compilation and installation is based on cmake. For details about compilation, you should look at the [build/README.md](https://github.com/grame-cncm/faust/blob/master-dev/build/README.md) file and have a look at the [Faust wiki pages](https://github.com/grame-cncm/faust/wiki) or go directly to the [simple way](https://github.com/grame-cncm/faust/wiki/BuildingSimple) to compile and install. 
-
-
-<!-- ### Getting the source code
-
-In order to compile Faust on your machine you can either download the latest release of the source code <https://github.com/grame-cncm/faust/releases> or clone the git repository. In order to clone the git repository you will have to do the following steps:
-
-	git clone https://github.com/grame-cncm/faust.git
-	cd faust
-	git submodule update --init
-
-The last step `git submodule update --init` is a new one. This is due to the fact that the Faust libraries have been moved to an independent github repository <https://github.com/grame-cncm/faustlibraries.git>. This repository is a submodule of the Faust repository (as well as some other Faust related projects).
-
-### Linux and MacOSX
-
-To build Faust on MacOSX or Linux, just run the following commands from the root of the distribution:
-
-	make
-	sudo make install
-
-This will compile the Faust compiler only, with a set of backends that do not have additional dependencies (so the LLVM backend will **not be compiled**). Use `make help` to see what other targets can be used from the toplevel Makefile.
-
-To refine compilation for more specific cases, go in the build folder and see the [build/README.md](build/README.md) file.
-
-### Windows
-
-You can use either MS [Visual Studio](http://www.microsoft.com/express/) or the [MSYS2](http://www.msys2.org/) environment. The current Makefile is targetting MSYS2 by default. See the [build/README.md](build/README.md) file for more details.
-
-### Build & Use Faust with Docker :
-
-	docker build -t faust
-	docker run faust [args...]
-
-For example to display the help:
-
-	docker run faust -h
-
-To use an additional tool, for example faust2pdf:
-
-	docker run --entrypoint faust2pdf faust [args...] -->
-
-## Using the Faust Examples
-
-The `/examples` folder contains dozen of example Faust codes organized by categories. There are many options to use them.
-
-### Faust Editor
-
-The [Faust Editor](https://faust.grame.fr/editor-page/) can be used to edit, compile and run Faust code from any recent Web Browser with WebAssembly support.
-
-### Faust Online Compiler
-
-The [Faust Online Compiler](https://faust.grame.fr/onlinecompiler/) allows to write and compile Faust codes for a wide range of targets and platforms. Unlike, the Faust playground presented above, it doesn't permit to run a Faust program in a web browser.
-
-
-### FaustPlayground
-
-[FaustPlayground](https://faust.grame.fr/faustplayground/) is an online tool to compile and use Faust code directly in a web browser. To use a Faust example from the `/examples` folder, just drag-and-drop it in the work space and it should work right away!
-
-### FaustLive
-
-[FaustLive](https://sourceforge.net/p/faudiostream/faustlive/ci/master/tree/) is a program that was designed to facilitate the prototyping of Faust codes. It embeds the LLVM on-the-fly compiler of Faust2 allowing you to very rapidly compile Faust codes on your computer. Binaries and installation packages of FaustLive are available for [Linux, Windows and OSX](https://sourceforge.net/projects/faudiostream/files/).
-
 ### `faust2...` Scripts and Programs
 
 The `faust2...` scripts and programs are command line tools allowing to compile Faust codes to any of the supported Faust targets ("architectures"). They are placed on your system during the Faust installation process. The fastest way to get an exhaustive list of all of them is to open a terminal window, type `faust2`, and then press the Tab key for auto-completion. For example, to compile a Faust code as a JACK application with a Qt interface, run:
@@ -129,43 +44,43 @@ The `faust2...` scripts and programs are command line tools allowing to compile 
 The most commonly used `faust2` scripts are:
 
     faust2alqt              : ALSA application with Qt UI
-    faust2ladspa            : LADSPA plug-in
-    faust2pdf               : pdf block diagram
-    faust2supercollider     : SuperCollider external
     faust2alsa              : ALSA application with GTK UI
-    faust2faustvst          : VST plug-in
-    faust2lv2               : LV2 plug-in
-    faust2plot              : command line program to debug DSP (sample plotting, etc.)
-    faust2svg               : SVG block diagram
     faust2alsaconsole       : ALSA command line program
-    faust2mathdoc           : automatic pdf mathematical documentation
-    faust2png               : png block diagram
     faust2android           : Android app
-    faust2graph             : svg graph
-    faust2puredata          : PureData external
     faust2api               : API generator
-    faust2msp               : MaxMSP 5 external and patch
-    faust2max6              : MaxMSP 6 (and later) external and patch
     faust2asmjs             : asmjs WebAudio code
-    faust2ios               : iOS app
-    faust2ros               : ROS app
     faust2au                : Audio Unit plugin
-    faust2rosgtk            : ROS app with GTK UI
     faust2bela              : BELA program
-    faust2jack              : JACK application with GTK UI
-    faust2netjackconsole    : NetJack command line program
-    faust2rpialsaconsole    : Raspberry Pi ALSA command line program
     faust2caqt              : CoreAudio application with Qt UI
-    faust2jackconsole       : JACK command line program
-    faust2netjackqt         : NetJack application with Qt UI
-    faust2rpinetjackconsole : Raspberry Pi JACK command line program
-    faust2webaudioasm       : WebAudio web HTML app
     faust2caqtios           : iOS app with Qt UI
-    faust2octave            : Octave script
     faust2csound            : CSOUND Opcode
-    faust2owl               : OWL Program
-    faust2sig               : SVG signal
+    faust2faustvst          : VST plug-in
+    faust2graph             : svg graph
+    faust2ios               : iOS app
+    faust2jack              : JACK application with GTK UI
+    faust2jackconsole       : JACK command line program
     faust2jaqt              : JACK application with Qt UI
+    faust2ladspa            : LADSPA plug-in
+    faust2lv2               : LV2 plug-in
+    faust2mathdoc           : automatic pdf mathematical documentation
+    faust2max6              : MaxMSP 6 (and later) external and patch
+    faust2msp               : MaxMSP 5 external and patch
+    faust2netjackconsole    : NetJack command line program
+    faust2netjackqt         : NetJack application with Qt UI
+    faust2octave            : Octave script
+    faust2owl               : OWL Program
+    faust2pdf               : pdf block diagram
+    faust2plot              : command line program to debug DSP (sample plotting, etc.)
+    faust2png               : png block diagram
+    faust2puredata          : PureData external
+    faust2ros               : ROS app
+    faust2rosgtk            : ROS app with GTK UI
+    faust2rpialsaconsole    : Raspberry Pi ALSA command line program
+    faust2rpinetjackconsole : Raspberry Pi JACK command line program
+    faust2sig               : SVG signal
+    faust2supercollider     : SuperCollider external
+    faust2svg               : SVG block diagram
+    faust2webaudioasm       : WebAudio web HTML app
 
 Obviously, the corresponding dependencies for each of them must be installed on your system for compilation to be successful. For example, if you use `faust2jaqt`, JACK and Qt libraries must be installed.
 
@@ -200,5 +115,8 @@ If you have questions suggestions and comments, or if you want to
 contribute to the project, two mailing lists are available:
 - [Development List](https://lists.sourceforge.net/lists/listinfo/faudiostream-devel)
 - [Users List](https://lists.sourceforge.net/lists/listinfo/faudiostream-users)
+- [Yann Orlarey](https://github.com/orlarey)
 
-[Yann Orlarey](https://github.com/orlarey)
+## License
+
+The original FAUST project is licensed under GPL2. The Rust binding code is released under the same license. Any abstractions or coding toolkit code in Rust is dual licensed under Apache 2.0/MIT to best serve the Rust community.

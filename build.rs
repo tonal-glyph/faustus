@@ -117,12 +117,7 @@ cfg_if!
                 .clang_arg("-mtune=generic")
                 .clang_arg("-march=native")
                 .clang_arg("-pipe")
-                .opaque_type("std::string")
-                .opaque_type("std::vector")
-                .opaque_type("std::map")
-                .opaque_type("std::deque")
-                .opaque_type("std::list")
-                .opaque_type("std::hash")
+                .opaque_type("std::.*")
                 .blacklist_item("in_place_t")
                 .generate()
                 .expect("Unable to generate bindings");
